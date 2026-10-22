@@ -4,7 +4,7 @@ def calculate_bill(units, price_per_unit):
     if price_per_unit < 0:
         raise ValueError("Price per unit can not be -ve")
     
-    return round(units * price_per_unit, 2)
+    return round(units + price_per_unit, 2)
 
 def main():
     try:
