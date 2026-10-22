@@ -25,3 +25,19 @@ jobs:
 
       - name: Run tests
         run: python -m pytest -v
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download repository code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t electricity-bill-calculator:ci .
+
+      - name: Check calculation inside Docker
+        run: |
+          docker run --rm electricity-bill-calculator:ci \
+            python -c "from app import calculate_bill; assert calculate_bill(150, 0.30) == 45.0; print('Container check passed')"
