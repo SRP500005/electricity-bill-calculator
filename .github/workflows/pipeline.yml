@@ -42,21 +42,25 @@ jobs:
           docker run --rm electricity-bill-calculator:ci \
             python -c "from app import calculate_bill; assert calculate_bill(150, 0.30) == 45.0; print('Container calculation check passed')"
 
-      - name: Check web server inside Docker
+            - name: Check web server inside Docker
         run: |
           docker run -d \
             --name calculator-web \
             -p 127.0.0.1:8000:8000 \
             electricity-bill-calculator:ci
 
-          trap 'docker logs calculator-web; docker rm -f calculator-web' EXIT
+          trap 'docker ps -a --filter name=calculator-web; docker logs calculator-web; docker rm -f calculator-web' EXIT
 
-          curl --fail --retry 15 --retry-delay 2 --retry-connrefused \
+          echo "Waiting for the web server..."
+          curl --fail --retry 15 --retry-delay 2 --retry-all-errors \
             http://127.0.0.1:8000/health
 
+          echo "Checking the calculation..."
           curl --fail \
             --data "units=150&price=0.30" \
             http://127.0.0.1:8000/calculate | grep -q "45.00"
+
+          echo "Web container checks passed."
 
   publish:
     needs: build
