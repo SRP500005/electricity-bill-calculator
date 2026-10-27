@@ -20,8 +20,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install test dependencies
-        run: python -m pip install -r requirements-dev.txt
+      - name: Install application and test dependencies
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Run tests
         run: python -m pytest -v
@@ -40,8 +40,27 @@ jobs:
       - name: Check calculation inside Docker
         run: |
           docker run --rm electricity-bill-calculator:ci \
-            python -c "from app import calculate_bill; assert calculate_bill(150, 0.30) == 45.0; print('Container check passed')"
+            python -c "from app import calculate_bill; assert calculate_bill(150, 0.30) == 45.0; print('Container calculation check passed')"
 
+            - name: Check web server inside Docker
+        run: |
+          docker run -d \
+            --name calculator-web \
+            -p 127.0.0.1:8000:8000 \
+            electricity-bill-calculator:ci
+
+          trap 'docker ps -a --filter name=calculator-web; docker logs calculator-web; docker rm -f calculator-web' EXIT
+
+          echo "Waiting for the web server..."
+          curl --fail --retry 15 --retry-delay 2 --retry-all-errors \
+            http://127.0.0.1:8000/health
+
+          echo "Checking the calculation..."
+          curl --fail \
+            --data "units=150&price=0.30" \
+            http://127.0.0.1:8000/calculate | grep -q "45.00"
+
+          echo "Web container checks passed."
 
   publish:
     needs: build
