@@ -1,36 +1,50 @@
-from flask import Flask, request
+import pytest
 
-from app import calculate_bill
-
-
-app = Flask(__name__)
+from web_app import app
 
 
-@app.get("/")
-def home():
-    return """
-    <h1>Electricity Bill Calculator</h1>
-    <form action="/calculate" method="post">
-        <label>Consumption in kWh:</label>
-        <input type="number" name="units" min="0" step="any" required>
+@pytest.fixture
+def client():
+    app.config.update(TESTING=True)
 
-        <label>Price per kWh in euros:</label>
-        <input type="number" name="price" min="0" step="any" required>
-
-        <button type="submit">Calculate</button>
-    </form>
-    """
+    return app.test_client()
 
 
-@app.post("/calculate")
-def calculate():
-    try:
-        units = float(request.form["units"])
-        price = float(request.form["price"])
+def test_home_page(client):
+    response = client.get("/")
 
-        total = calculate_bill(units, price)
+    assert response.status_code == 200
+    assert b"Electricity Bill Calculator" in response.data
 
-        return f"<h1>Your electricity bill is €{total:.2f}</h1>"
 
-    except ValueError:
-        return "Enter valid, non-negative numbers.", 400
+def test_health(client):
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"status": "ok"}
+
+
+def test_calculate_bill(client):
+    response = client.post(
+        "/calculate",
+        data={"units": "150", "price": "0.30"},
+    )
+
+    assert response.status_code == 200
+    assert "45.00" in response.get_data(as_text=True)
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"units": "-150", "price": "0.30"},
+        {"units": "150", "price": "-0.30"},
+        {"units": "hello", "price": "0.30"},
+        {"units": "", "price": "0.30"},
+        {},
+    ],
+)
+def test_invalid_input(client, data):
+    response = client.post("/calculate", data=data)
+
+    assert response.status_code == 400
